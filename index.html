@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>REP-PRI · Voto digital (Kiosco)</title>
+
+  <!-- Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root{
+      --azul:#0074c8; --cyan:#00acd9; --rojo:#dc143c;
+      --bg:#f4f7fb; --card:#ffffff; --border:#e5edf5;
+      --txt:#0f172a; --muted:#64748b;
+      --shadow: 0 14px 34px rgba(2, 6, 23, .08);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+      background: radial-gradient(1200px 600px at 10% 0%, rgba(0,172,217,.10), transparent 60%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(0,116,200,.10), transparent 60%),
+                  var(--bg);
+      color:var(--txt);
+      overflow:hidden;
+    }
+    .wrap{max-width:1180px;margin:0 auto;height:100%;padding:18px;display:flex;flex-direction:column;gap:12px}
+
+    .top{
+      background:linear-gradient(135deg, rgba(0,116,200,.14), rgba(0,172,217,.10));
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px 16px;
+      display:flex;align-items:center;justify-content:space-between;gap:14px;
+    }
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .logo{
+      width:44px;height:44px;border-radius:14px;
+      background:linear-gradient(135deg,var(--azul),var(--cyan));
+      color:white;display:flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:20px;
+      box-shadow:0 12px 28px rgba(0,116,200,.18);
+      flex:0 0 auto;
+    }
+    .ttl{min-width:0}
+    .ttl h1{margin:0;font-size:18px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ttl p{margin:4px 0 0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    .meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+    .pill{
+      border:1px solid var(--border);
+      background:white;
+      border-radius:999px;
+      padding:8px 10px;
+      font-size:12px;
+      color:#0b2a43;
+      white-space:nowrap;
+    }
+    .pill.ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+    .pill.warn{background:#fff7ed;border-color:#fed7aa;color:#7c2d12}
+    .pill.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+
+    .btnTop{
+      border:0;border-radius:12px;
+      padding:10px 12px;
+      background:linear-gradient(135deg,var(--azul),var(--cyan));
+      color:white;
+      font-weight:900;
+      cursor:pointer;
+      font-size:12px;
+      box-shadow:0 10px 22px rgba(0,116,200,.18);
+    }
+
+    .toast{
+      display:none;
+      border-radius:16px;
+      padding:14px 16px;
+      font-weight:950;
+      color:white;
+      background:linear-gradient(135deg,var(--azul),var(--cyan));
+      box-shadow:0 14px 34px rgba(0,116,200,.18);
+    }
+    .toast.bad{background:linear-gradient(135deg,var(--rojo),#ff6b6b)}
+
+    .grid{flex:1;min-height:0;display:grid;grid-template-columns: 430px 1fr;gap:12px}
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow: var(--shadow);
+      padding:14px;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .card h2{margin:0;font-size:15px}
+    .sub{margin:0;color:var(--muted);font-size:12px;line-height:1.35}
+
+    .groupTitle{font-size:12px;font-weight:800;color:#334155;margin:6px 0 8px}
+    .pills{display:flex;flex-wrap:wrap;gap:8px}
+
+    /* Botones reales (touch fiable) */
+    .pillbtn{
+      border:1px solid var(--border);
+      background:#f8fbff;
+      border-radius:999px;
+      padding:10px 12px;
+      font-size:12px;
+      font-weight:750;
+      cursor:pointer;
+      user-select:none;
+      color:#0f172a;
+    }
+    .pillbtn[aria-pressed="true"]{border-color:var(--azul);background:#e0f2fe}
+
+    .temas{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap:10px;
+      flex:1;
+      min-height:0;
+      overflow:hidden;
+    }
+    .tema{
+      border:2px solid var(--border);
+      border-radius:16px;
+      background:#f8fafc;
+      padding:12px 10px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      cursor:pointer;
+      user-select:none;
+      position:relative;
+      min-height:96px;
+      transition: transform .08s ease, box-shadow .12s ease;
+      text-align:center;
+    }
+    .tema:hover{transform:translateY(-1px);box-shadow:0 14px 32px rgba(2,6,23,.08)}
+    .tema .ic{font-size:26px;line-height:1}
+    .tema .lb{font-size:12px;font-weight:900;line-height:1.2;color:#334155}
+    .tema .cb{
+      position:absolute;top:10px;right:10px;
+      width:18px;height:18px;border-radius:6px;
+      border:2px solid rgba(15,23,42,.20);
+      background:white;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:900;color:white;
+    }
+    .tema[data-on="1"] .cb{background:var(--cyan);border-color:var(--cyan)}
+
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .count{font-size:12px;font-weight:900;color:var(--muted)}
+    .btn{
+      border:0;border-radius:16px;
+      padding:16px 16px;
+      background:linear-gradient(135deg,var(--azul),var(--cyan));
+      color:white;
+      font-size:16px;
+      font-weight:950;
+      cursor:pointer;
+      width:260px;
+      box-shadow:0 14px 34px rgba(0,116,200,.18);
+    }
+    .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
+    /* Panel m/s (si falta) */
+    .msPanel{
+      display:none;
+      border:1px dashed var(--border);
+      border-radius:16px;
+      padding:12px;
+      background:#fff;
+      gap:8px;
+      margin-top:8px;
+    }
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input{
+      padding:12px;border-radius:12px;border:1px solid var(--border);
+      flex:1;min-width:160px;font-size:14px
+    }
+    .btnSm{
+      padding:12px 14px;border-radius:12px;border:0;
+      background:linear-gradient(135deg,var(--azul),var(--cyan));
+      color:white;font-weight:900;cursor:pointer
+    }
+
+    @media (max-height: 860px){
+      .temas{grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));}
+      .tema{min-height:88px}
+      .btn{padding:14px}
+    }
+    @media (max-width: 1020px){
+      body{overflow:auto}
+      .wrap{height:auto}
+      .grid{grid-template-columns: 1fr}
+      .temas{overflow:auto}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo">🗳️</div>
+        <div class="ttl">
+          <h1>Voto digital · Kiosco</h1>
+          <p>Edad, sexo, residencia + temas (máx. 5). Reinicio automático.</p>
+        </div>
+      </div>
+      <div class="meta">
+        <button class="btnTop" id="btnFullscreen" type="button">Pantalla completa</button>
+        <div class="pill mono" id="metaPill">m=— · s=—</div>
+        <div class="pill warn" id="statePill">—</div>
+      </div>
+    </div>
+
+    <div class="toast" id="toastOk">✅ Voto registrado. Preparando siguiente papeleta…</div>
+    <div class="toast bad" id="toastBad">⚠️ No se pudo guardar. Reintenta.</div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Datos</h2>
+        <p class="sub">Selecciona edad, sexo y si resides habitualmente en el municipio.</p>
+
+        <!-- Importante: en esta versión NO se usa localStorage para m/s.
+             Si no vienen en URL/hash, hay que introducirlos aquí. -->
+        <div class="msPanel" id="msPanel">
+          <div class="sub">Configura municipio y sesión (si falta en la URL).</div>
+          <div class="row">
+            <input id="mInput" placeholder="m (municipio), ej. alfacar" />
+            <input id="sInput" placeholder="s (sesión), ej. mm24s78og0r17" />
+            <button class="btnSm" id="setMsBtn" type="button">Aplicar</button>
+          </div>
+          <div class="sub mono" id="urlPreview" style="margin-top:6px;"></div>
+        </div>
+
+        <div>
+          <div class="groupTitle">Edad</div>
+          <div class="pills" id="edadPills"></div>
+        </div>
+
+        <div>
+          <div class="groupTitle">Sexo</div>
+          <div class="pills" id="sexoPills"></div>
+        </div>
+
+        <div>
+          <div class="groupTitle">¿Reside habitualmente en este municipio?</div>
+          <div class="pills" id="resPills"></div>
+        </div>
+
+        <div class="sub" id="readyHint"></div>
+      </div>
+
+      <div class="card" style="min-height:0">
+        <h2>¿Sobre qué temas de salud debería actuar tu Ayuntamiento?</h2>
+        <p class="sub">Elige hasta <strong>5 temas</strong> que consideres más importantes.</p>
+
+        <div class="temas" id="temasGrid"></div>
+
+        <div class="bar">
+          <div class="count" id="countTxt">0/5 seleccionados</div>
+          <div style="flex:1"></div>
+          <button class="btn" id="sendBtn" disabled type="button">Enviar voto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /* ========= Firebase (COMPÁS) ========= */
+  firebase.initializeApp({
+    apiKey: "AIzaSyCdAivJATiX76xuOJAMc4Yt7sLq-3GDuDw",
+    authDomain: "itaca-3ba7b.firebaseapp.com",
+    databaseURL: "https://itaca-3ba7b-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "itaca-3ba7b"
+  });
+  const db = firebase.database();
+
+  /* ========= m y s (SOLO URL/hash; NO localStorage) ========= */
+  function readParamsStrict(){
+    const qs = new URLSearchParams(location.search);
+    const hs = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    const m = (qs.get("m") || qs.get("municipio") || hs.get("m") || hs.get("municipio") || "").trim();
+    const s = (qs.get("s") || qs.get("session") || hs.get("s") || hs.get("session") || "").trim();
+    return { m, s };
+  }
+  let { m:municipio, s:sessionId } = readParamsStrict();
+
+  const metaPill = document.getElementById("metaPill");
+  const statePill = document.getElementById("statePill");
+  const msPanel = document.getElementById("msPanel");
+  const mInput = document.getElementById("mInput");
+  const sInput = document.getElementById("sInput");
+  const setMsBtn = document.getElementById("setMsBtn");
+  const btnFullscreen = document.getElementById("btnFullscreen");
+  const readyHint = document.getElementById("readyHint");
+  const urlPreview = document.getElementById("urlPreview");
+
+  function setState(kind, txt){
+    statePill.className = "pill " + (kind || "ok");
+    statePill.textContent = txt;
+  }
+  function refreshMeta(){
+    metaPill.textContent = `m=${municipio || "—"} · s=${sessionId || "—"}`;
+  }
+  function ensureMsPanel(){
+    if(!municipio || !sessionId){
+      msPanel.style.display = "grid";
+      setState("warn", "Falta m/s");
+    }else{
+      msPanel.style.display = "none";
+      setState("ok", "Listo");
+    }
+  }
+  function setUrlParams(m, s){
+    const u = new URL(location.href);
+    u.searchParams.set("m", m);
+    u.searchParams.set("s", s);
+    u.hash = ""; // evitamos duplicidad
+    history.replaceState(null, "", u.toString());
+  }
+  function updateUrlPreview(){
+    const nm = (mInput.value || "").trim();
+    const ns = (sInput.value || "").trim();
+    if(!nm || !ns){ urlPreview.textContent = ""; return; }
+    const u = new URL(location.href);
+    u.searchParams.set("m", nm);
+    u.searchParams.set("s", ns);
+    u.hash = "";
+    urlPreview.textContent = u.toString();
+  }
+
+  refreshMeta();
+  ensureMsPanel();
+  updateUrlPreview();
+
+  mInput.addEventListener("input", updateUrlPreview);
+  sInput.addEventListener("input", updateUrlPreview);
+
+  // Aplicar: fija variables + actualiza URL (sin recargar) y NO persiste en localStorage
+  setMsBtn.onclick = ()=>{
+    const nm = (mInput.value || "").trim();
+    const ns = (sInput.value || "").trim();
+    if(!nm || !ns){
+      setState("warn","Completa m y s");
+      return;
+    }
+    municipio = nm;
+    sessionId = ns;
+    setUrlParams(nm, ns);
+    refreshMeta();
+    ensureMsPanel();
+    refresh();
+  };
+
+  btnFullscreen.onclick = async ()=>{
+    try{
+      if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    }catch(e){ console.error(e); }
+  };
+
+  /* ========= Catálogos ========= */
+  const TEMAS = {
+    1:'Alimentación', 2:'Actividad física', 3:'Bienestar emocional y salud mental',
+    4:'Uso de pantallas y redes sociales', 5:'Sueño y descanso',
+    6:'Tabaco, vapeadores, alcohol y otras drogas', 7:'Sexualidad y salud',
+    8:'Violencia de género', 9:'Medioambiente y municipio',
+    10:'Accidentes en el hogar y la vía pública'
+  };
+  const ICONOS = { 1:'🥗', 2:'🏃', 3:'🧠', 4:'📱', 5:'😴', 6:'🚬', 7:'❤️', 8:'✊', 9:'🌿', 10:'⚠️' };
+
+  const EDADES = ['Menor de 18','18-29','30-44','45-59','60-74','75 o más'];
+  const SEXOS  = ['Hombre','Mujer','No binario / otro','Prefiero no decirlo'];
+  const RESIDE = ['Sí','No'];
+
+  let sel = new Set();
+  let edad = null, sexo = null, residente = null;
+
+  const temasGrid = document.getElementById("temasGrid");
+  const countTxt  = document.getElementById("countTxt");
+  const sendBtn   = document.getElementById("sendBtn");
+  const toastOk   = document.getElementById("toastOk");
+  const toastBad  = document.getElementById("toastBad");
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  function renderPills(elId, options, setValue){
+    const el = document.getElementById(elId);
+    el.innerHTML = "";
+    options.forEach(opt=>{
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pillbtn";
+      b.textContent = opt;
+      b.setAttribute("aria-pressed", "false");
+      b.onclick = ()=>{
+        bumpInactivity();
+        Array.from(el.children).forEach(x=>x.setAttribute("aria-pressed","false"));
+        b.setAttribute("aria-pressed","true");
+        setValue(opt);
+        refresh();
+      };
+      el.appendChild(b);
+    });
+  }
+
+  function renderTemas(){
+    temasGrid.innerHTML = "";
+    Object.keys(TEMAS).map(k=>parseInt(k,10)).forEach(k=>{
+      const t = document.createElement("div");
+      t.className = "tema";
+      t.dataset.k = String(k);
+      t.dataset.on = "0";
+      t.innerHTML = `
+        <div class="cb">✓</div>
+        <div class="ic">${ICONOS[k] || "•"}</div>
+        <div class="lb">${escapeHtml(TEMAS[k])}</div>
+      `;
+      t.onclick = ()=>{
+        bumpInactivity();
+        if(sel.has(k)){ sel.delete(k); t.dataset.on="0"; }
+        else { if(sel.size>=5) return; sel.add(k); t.dataset.on="1"; }
+        refresh();
+      };
+      temasGrid.appendChild(t);
+    });
+  }
+
+  function isReadyToSend(){
+    return !!(municipio && sessionId && sel.size > 0 &&
+      edad !== null && sexo !== null && residente !== null);
+  }
+
+  function readyReason(){
+    const miss=[];
+    if(!municipio || !sessionId) miss.push("m/s");
+    if(sel.size===0) miss.push("temas");
+    if(edad===null) miss.push("edad");
+    if(sexo===null) miss.push("sexo");
+    if(residente===null) miss.push("residencia");
+    return miss.length ? ("Falta: " + miss.join(", ")) : "Listo para enviar.";
+  }
+
+  function refresh(){
+    // Si alguien pegó URL nueva sin recargar, re-lee
+    const p = readParamsStrict();
+    if(p.m && p.s){
+      municipio = p.m;
+      sessionId = p.s;
+    }
+    refreshMeta();
+    ensureMsPanel();
+
+    countTxt.textContent = `${sel.size}/5 seleccionados`;
+    sendBtn.disabled = !isReadyToSend();
+    readyHint.textContent = readyReason();
+  }
+
+  function resetAll(){
+    sel = new Set();
+    edad = sexo = residente = null;
+    toastOk.style.display = "none";
+    toastBad.style.display = "none";
+
+    ["edadPills","sexoPills","resPills"].forEach(id=>{
+      Array.from(document.getElementById(id).children).forEach(x=>{
+        x.setAttribute("aria-pressed","false");
+      });
+    });
+    Array.from(temasGrid.children).forEach(x=>x.dataset.on="0");
+    refresh();
+    window.scrollTo(0,0);
+  }
+
+  /* ========= Kiosco: autolimpieza por inactividad ========= */
+  let inactivityMs = 45000;
+  let inactivityTimer = null;
+  function bumpInactivity(){
+    if(inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(()=>{ resetAll(); setState("ok","Listo"); }, inactivityMs);
+  }
+  ["click","touchstart","keydown","mousemove"].forEach(evt=>{
+    window.addEventListener(evt, bumpInactivity, {passive:true});
+  });
+  bumpInactivity();
+
+  async function enviarVotoFirebase(voto){
+    if(!municipio || !sessionId) throw new Error("MISSING_MS");
+    return db.ref(`votaciones_relas/${municipio}/${sessionId}/respuestas`).push(voto);
+  }
+
+  sendBtn.onclick = async ()=>{
+    bumpInactivity();
+    toastBad.style.display = "none";
+    toastOk.style.display = "none";
+
+    refresh();
+    if(!isReadyToSend()){
+      setState("warn", "Datos incompletos");
+      return;
+    }
+
+    sendBtn.disabled = true;
+    setState("warn", "Enviando…");
+
+    const voto = {
+      id: (Date.now().toString(36) + Math.random().toString(36).slice(2,6)),
+      ts: Date.now(),
+      fuente: "rep-pri-kiosk",
+      temas: Array.from(sel),
+      edad: edad, sexo: sexo, residente: residente
+    };
+
+    try{
+      await enviarVotoFirebase(voto);
+      toastOk.style.display = "block";
+      setState("ok", "Registrado");
+      setTimeout(()=>{ resetAll(); setState("ok", "Listo"); }, 1200);
+    }catch(e){
+      console.error(e);
+      toastBad.style.display = "block";
+      setState("err", "Error al guardar");
+      refresh();
+    }
+  };
+
+  // init
+  renderPills("edadPills", EDADES, (v)=>{ edad=v; });
+  renderPills("sexoPills", SEXOS,  (v)=>{ sexo=v; });
+  renderPills("resPills", RESIDE, (v)=>{ residente=v; });
+
+  renderTemas();
+  refresh();
+</script>
+</body>
+</html>
